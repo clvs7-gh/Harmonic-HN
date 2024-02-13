@@ -74,6 +74,7 @@ import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
+import com.google.android.gms.tasks.Tasks;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -81,6 +82,10 @@ import com.google.android.material.progressindicator.LinearProgressIndicator;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.transition.MaterialFadeThrough;
 import com.google.android.material.transition.MaterialSharedAxis;
+import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.nl.translate.Translation;
+import com.google.mlkit.nl.translate.Translator;
+import com.google.mlkit.nl.translate.TranslatorOptions;
 import com.simon.harmonichackernews.adapters.CommentsRecyclerViewAdapter;
 import com.simon.harmonichackernews.data.ArxivInfo;
 import com.simon.harmonichackernews.data.Comment;
@@ -109,6 +114,8 @@ import com.simon.harmonichackernews.utils.ViewUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Element;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -117,6 +124,10 @@ import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import okhttp3.Call;
 
@@ -758,7 +769,7 @@ public class CommentsFragment extends Fragment implements CommentsRecyclerViewAd
         webView.getSettings().setDatabaseEnabled(true);
         webView.getSettings().setUseWideViewPort(true);
         webView.getSettings().setLoadWithOverviewMode(true);
-        
+
         webView.setDownloadListener(new DownloadListener() {
             @Override
             public void onDownloadStart(String url, String userAgent,
@@ -1396,6 +1407,37 @@ public class CommentsFragment extends Fragment implements CommentsRecyclerViewAd
                                     break;
                                 }
                             }
+                        }
+                    });
+                } else if (id == R.id.menu_translate_comments) {
+                    TranslatorOptions options = new TranslatorOptions.Builder()
+                            .setSourceLanguage(TranslateLanguage.ENGLISH)
+                            .setTargetLanguage(Locale.getDefault().getLanguage())
+                            .build();
+                    final Translator translator = Translation.getClient(options);
+                    getLifecycle().addObserver(translator);
+
+                    Toast.makeText(getContext(), "Translating comments...", Toast.LENGTH_LONG).show();
+                    final ExecutorService executor = Executors.newSingleThreadExecutor();
+                    final Handler handler = new Handler(Looper.getMainLooper());
+                    executor.execute(() -> {
+                        try {
+                            Tasks.await(translator.downloadModelIfNeeded());
+                            for (Comment c : comments) {
+                                if (c.text == null) continue;
+                                final Element body = Jsoup.parse(c.text).body();
+                                final StringBuilder textSb = new StringBuilder();
+                                textSb.append("<p>").append(Tasks.await(translator.translate(body.ownText()))).append("</p>");
+                                for (Element el : body.children()) {
+                                    textSb.append("<p>").append(Tasks.await(translator.translate(el.html()))).append("</p>");
+                                }
+
+                                c.text = textSb.toString();
+                                handler.post(() -> adapter.notifyItemChanged(comments.indexOf(c)));
+                            }
+                        } catch (ExecutionException | InterruptedException e) {
+                            Toast.makeText(getContext(), "Failed to translate comments", Toast.LENGTH_SHORT).show();
+                            Log.e("HARMONIC_TAG", "Failed to translate comments", e);
                         }
                     });
                 }

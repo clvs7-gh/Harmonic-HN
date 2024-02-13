@@ -16,4 +16,8 @@
         android:id="@+id/menu_archive"
         android:title="View on archive.org" />
 
+    <item
+        android:id="@+id/menu_translate_comments"
+        android:title="Translate with Google" />
+
 </menu>
