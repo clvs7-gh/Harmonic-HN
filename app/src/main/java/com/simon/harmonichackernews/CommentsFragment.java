@@ -1462,6 +1462,10 @@ public class CommentsFragment extends Fragment implements CommentsRecyclerViewAd
             if (item.getItemId() == R.id.menu_search_comments && comments.size() < 2) {
                 item.setVisible(false);
             }
+
+            if (Locale.getDefault().getLanguage().equals(TranslateLanguage.ENGLISH) && item.getItemId() == R.id.menu_translate_comments) {
+                item.setVisible(false);
+            }
         }
 
         popup.show();
